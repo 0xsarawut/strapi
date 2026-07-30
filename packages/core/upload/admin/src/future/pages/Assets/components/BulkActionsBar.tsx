@@ -7,6 +7,7 @@ import { useIntl } from 'react-intl';
 import { styled } from 'styled-components';
 
 import { useAIAvailability } from '../../../../hooks/useAiAvailability';
+import { useMediaLibraryPermissions } from '../../../hooks/useMediaLibraryPermissions';
 import { useBulkDeleteItemsMutation } from '../../../services/assets';
 import { getTranslationKey } from '../../../utils/translations';
 import { useAssetSelection } from '../hooks/useAssetSelection';
@@ -51,6 +52,9 @@ export const BulkActionsBar = () => {
   const { formatMessage } = useIntl();
   const { toggleNotification } = useNotification();
   const { isEnabled: isAiMetadataEnabled } = useAIAvailability();
+  // Every bulk action (move, delete, metadata) is an `assets.update` mutation
+  // server-side — one flag gates the whole cluster.
+  const { canUpdate } = useMediaLibraryPermissions();
   const { selectedIds, selectedFolderIds, clear } = useAssetSelection();
   const [bulkDeleteItems, { isLoading: isDeleting }] = useBulkDeleteItemsMutation();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -136,7 +140,7 @@ export const BulkActionsBar = () => {
       </Typography>
 
       <ActionCluster>
-        {isAiMetadataEnabled && (
+        {canUpdate && isAiMetadataEnabled && (
           <Button
             size="S"
             startIcon={<Sparkle />}
@@ -155,96 +159,105 @@ export const BulkActionsBar = () => {
           </Button>
         )}
 
-        <IconButton
-          variant="tertiary"
-          disabled={isDeleting}
-          label={formatMessage({
-            id: getTranslationKey('list.bulk-actions.move'),
-            defaultMessage: 'Move',
-          })}
-          onClick={() => setIsMoveDialogOpen(true)}
-        >
-          <ArrowRight />
-        </IconButton>
-        <BulkMoveDialog open={isMoveDialogOpen} onClose={() => setIsMoveDialogOpen(false)} />
-
-        <Dialog.Root
-          open={isDeleteDialogOpen}
-          onOpenChange={(open: boolean) => {
-            // The dialog must stay open while the request runs — a bulk delete
-            // can't be aborted halfway, so the loader is the source of truth.
-            if (!isDeleting) {
-              setIsDeleteDialogOpen(open);
-            }
-          }}
-        >
-          <Dialog.Trigger>
+        {canUpdate && (
+          <>
             <IconButton
-              variant="danger-light"
+              variant="tertiary"
               disabled={isDeleting}
               label={formatMessage({
-                id: getTranslationKey('list.bulk-actions.delete'),
-                defaultMessage: 'Delete',
+                id: getTranslationKey('list.bulk-actions.move'),
+                defaultMessage: 'Move',
               })}
+              onClick={() => setIsMoveDialogOpen(true)}
             >
-              <Trash />
+              <ArrowRight />
             </IconButton>
-          </Dialog.Trigger>
-          <Dialog.Content>
-            <Dialog.Header>
-              {formatMessage(
-                {
-                  id: getTranslationKey('list.bulk-actions.delete.confirm.title'),
-                  defaultMessage: 'Delete {count, plural, =1 {# item} other {# items}}?',
-                },
-                { count }
-              )}
-            </Dialog.Header>
-            <Dialog.Body
-              icon={<WarningCircle width="24px" height="24px" fill="danger600" />}
-              textAlign="center"
-            >
-              <Typography>
-                {formatMessage({
-                  id: getTranslationKey(
-                    'list.bulk-actions.delete.confirm.description.are-you-sure'
-                  ),
-                  defaultMessage:
-                    'These items cannot be recovered once deleted, and deleting a folder also deletes everything inside it. If they are currently in use, linked content will break and image containers will be empty.',
+            <BulkMoveDialog open={isMoveDialogOpen} onClose={() => setIsMoveDialogOpen(false)} />
+          </>
+        )}
+
+        {canUpdate && (
+          <Dialog.Root
+            open={isDeleteDialogOpen}
+            onOpenChange={(open: boolean) => {
+              // The dialog must stay open while the request runs — a bulk delete
+              // can't be aborted halfway, so the loader is the source of truth.
+              if (!isDeleting) {
+                setIsDeleteDialogOpen(open);
+              }
+            }}
+          >
+            <Dialog.Trigger>
+              <IconButton
+                variant="danger-light"
+                disabled={isDeleting}
+                label={formatMessage({
+                  id: getTranslationKey('list.bulk-actions.delete'),
+                  defaultMessage: 'Delete',
                 })}
-              </Typography>
-              <Typography>
-                {formatMessage({
-                  id: getTranslationKey(
-                    'list.bulk-actions.delete.confirm.description.cant-be-undone'
-                  ),
-                  defaultMessage:
-                    'This action can’t be undone. Deleting a folder also removes everything inside it, and any linked content will break – media asset containers will appear empty.',
-                })}
-              </Typography>
-            </Dialog.Body>
-            <Dialog.Footer>
-              <Dialog.Cancel>
-                <Button variant="tertiary" disabled={isDeleting} fullWidth>
-                  {formatMessage({ id: 'app.components.Button.cancel', defaultMessage: 'Cancel' })}
-                </Button>
-              </Dialog.Cancel>
-              <Dialog.Action>
-                <Button
-                  variant="danger-light"
-                  loading={isDeleting}
-                  onClick={handleConfirmDelete}
-                  fullWidth
-                >
+              >
+                <Trash />
+              </IconButton>
+            </Dialog.Trigger>
+            <Dialog.Content>
+              <Dialog.Header>
+                {formatMessage(
+                  {
+                    id: getTranslationKey('list.bulk-actions.delete.confirm.title'),
+                    defaultMessage: 'Delete {count, plural, =1 {# item} other {# items}}?',
+                  },
+                  { count }
+                )}
+              </Dialog.Header>
+              <Dialog.Body
+                icon={<WarningCircle width="24px" height="24px" fill="danger600" />}
+                textAlign="center"
+              >
+                <Typography>
                   {formatMessage({
-                    id: 'app.components.Button.confirm',
-                    defaultMessage: 'Confirm',
+                    id: getTranslationKey(
+                      'list.bulk-actions.delete.confirm.description.are-you-sure'
+                    ),
+                    defaultMessage:
+                      'These items cannot be recovered once deleted, and deleting a folder also deletes everything inside it. If they are currently in use, linked content will break and image containers will be empty.',
                   })}
-                </Button>
-              </Dialog.Action>
-            </Dialog.Footer>
-          </Dialog.Content>
-        </Dialog.Root>
+                </Typography>
+                <Typography>
+                  {formatMessage({
+                    id: getTranslationKey(
+                      'list.bulk-actions.delete.confirm.description.cant-be-undone'
+                    ),
+                    defaultMessage:
+                      'This action can’t be undone. Deleting a folder also removes everything inside it, and any linked content will break – media asset containers will appear empty.',
+                  })}
+                </Typography>
+              </Dialog.Body>
+              <Dialog.Footer>
+                <Dialog.Cancel>
+                  <Button variant="tertiary" disabled={isDeleting} fullWidth>
+                    {formatMessage({
+                      id: 'app.components.Button.cancel',
+                      defaultMessage: 'Cancel',
+                    })}
+                  </Button>
+                </Dialog.Cancel>
+                <Dialog.Action>
+                  <Button
+                    variant="danger-light"
+                    loading={isDeleting}
+                    onClick={handleConfirmDelete}
+                    fullWidth
+                  >
+                    {formatMessage({
+                      id: 'app.components.Button.confirm',
+                      defaultMessage: 'Confirm',
+                    })}
+                  </Button>
+                </Dialog.Action>
+              </Dialog.Footer>
+            </Dialog.Content>
+          </Dialog.Root>
+        )}
       </ActionCluster>
 
       <VerticalDivider aria-hidden />

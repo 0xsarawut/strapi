@@ -22,6 +22,7 @@ import { useNotification } from '@strapi/admin/strapi-admin';
 import { Box, VisuallyHidden } from '@strapi/design-system';
 import { useIntl } from 'react-intl';
 
+import { useMediaLibraryPermissions } from '../../../../hooks/useMediaLibraryPermissions';
 import { useBulkMoveMutation, useGetFolderStructureQuery } from '../../../../services/folders';
 import { buildBulkMovePayload } from '../../../../utils/buildBulkMovePayload';
 import { canDropItemOnFolder } from '../../../../utils/canDropItemOnFolder';
@@ -121,9 +122,13 @@ export const AssetsDndProvider = ({ children }: AssetsDndProviderProps) => {
     requestAnimationFrame(() => setLiveAnnouncement(message));
   }, []);
 
+  // Moving is a mutation (bulk-move → `assets.update`): without the
+  // permission the drag never activates — an unreachable activation distance
+  // keeps the sensor hook unconditional (hooks rules) while disabling it.
+  const { canUpdate } = useMediaLibraryPermissions();
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
+      activationConstraint: { distance: canUpdate ? 8 : Number.MAX_SAFE_INTEGER },
     })
   );
 

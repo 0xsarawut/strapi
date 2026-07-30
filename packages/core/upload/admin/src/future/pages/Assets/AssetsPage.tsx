@@ -22,6 +22,7 @@ import {
 import { useIntl } from 'react-intl';
 import { styled } from 'styled-components';
 
+import { useMediaLibraryPermissions } from '../../hooks/useMediaLibraryPermissions';
 import { useUploadFromUrlsMutation, useUploadFilesMutation } from '../../services/api';
 import { useGetFolderQuery, useGetFoldersQuery } from '../../services/folders';
 import { getTranslationKey } from '../../utils/translations';
@@ -109,6 +110,7 @@ interface AssetsViewProps {
   foldersPosition: FoldersPosition;
   onAssetItemClick: (assetId: number) => void;
   onAddAssets: () => void;
+  canAddAssets: boolean;
   onClearSearch: () => void;
 }
 
@@ -127,6 +129,7 @@ const AssetsView = ({
   foldersPosition,
   onAssetItemClick,
   onAddAssets,
+  canAddAssets,
   onClearSearch,
 }: AssetsViewProps) => {
   const { formatMessage } = useIntl();
@@ -182,6 +185,7 @@ const AssetsView = ({
     return (
       <EmptyState
         onAddAssets={onAddAssets}
+        canAddAssets={canAddAssets}
         searchQuery={searchQuery}
         onClearSearch={onClearSearch}
       />
@@ -302,6 +306,7 @@ const HeaderWrapper = styled(Box)`
 export const AssetsPage = () => {
   const { formatMessage } = useIntl();
   const { openDetails } = useAssetDetailsParam();
+  const { canCreate } = useMediaLibraryPermissions();
 
   const { currentFolderId, navigateToFolderId, navigateToRoot } = useFolderNavigation();
   // Deleted or missing folders (404) need a fetch — handled here, not in
@@ -423,6 +428,8 @@ export const AssetsPage = () => {
   };
 
   const handleDrop = async (files: globalThis.File[]) => {
+    // The page-wide drop zone bypasses every button gate — enforce here too.
+    if (!canCreate) return;
     await uploadFilesToFolder(files, currentFolderId);
   };
 
@@ -470,37 +477,39 @@ export const AssetsPage = () => {
                   <Layouts.Header
                     title={pageHeaderTitle}
                     primaryAction={
-                      <SimpleMenu
-                        popoverPlacement="bottom-end"
-                        variant="default"
-                        endIcon={<ChevronDown />}
-                        label={formatMessage({
-                          id: getTranslationKey('new'),
-                          defaultMessage: 'New',
-                        })}
-                      >
-                        <MenuItem
-                          onSelect={() => setIsCreateFolderDialogOpen(true)}
-                          startIcon={<FolderIcon />}
+                      canCreate && (
+                        <SimpleMenu
+                          popoverPlacement="bottom-end"
+                          variant="default"
+                          endIcon={<ChevronDown />}
+                          label={formatMessage({
+                            id: getTranslationKey('new'),
+                            defaultMessage: 'New',
+                          })}
                         >
-                          {formatMessage({
-                            id: getTranslationKey('folder.create.title'),
-                            defaultMessage: 'New folder',
-                          })}
-                        </MenuItem>
-                        <MenuItem onSelect={handleFileSelect} startIcon={<Files />}>
-                          {formatMessage({
-                            id: getTranslationKey('import-files'),
-                            defaultMessage: 'Import files',
-                          })}
-                        </MenuItem>
-                        <MenuItem onSelect={() => setIsUrlDialogOpen(true)} startIcon={<Link />}>
-                          {formatMessage({
-                            id: getTranslationKey('import-from-url'),
-                            defaultMessage: 'Import from URL',
-                          })}
-                        </MenuItem>
-                      </SimpleMenu>
+                          <MenuItem
+                            onSelect={() => setIsCreateFolderDialogOpen(true)}
+                            startIcon={<FolderIcon />}
+                          >
+                            {formatMessage({
+                              id: getTranslationKey('folder.create.title'),
+                              defaultMessage: 'New folder',
+                            })}
+                          </MenuItem>
+                          <MenuItem onSelect={handleFileSelect} startIcon={<Files />}>
+                            {formatMessage({
+                              id: getTranslationKey('import-files'),
+                              defaultMessage: 'Import files',
+                            })}
+                          </MenuItem>
+                          <MenuItem onSelect={() => setIsUrlDialogOpen(true)} startIcon={<Link />}>
+                            {formatMessage({
+                              id: getTranslationKey('import-from-url'),
+                              defaultMessage: 'Import from URL',
+                            })}
+                          </MenuItem>
+                        </SimpleMenu>
+                      )
                     }
                     subtitle={
                       <Flex justifyContent="space-between" alignItems="center" gap={4} width="100%">
@@ -574,6 +583,7 @@ export const AssetsPage = () => {
                       foldersPosition={listSort.foldersPosition}
                       onAssetItemClick={openDetails}
                       onAddAssets={handleFileSelect}
+                      canAddAssets={canCreate}
                       onClearSearch={clearSearch}
                     />
                   </DropZoneWithOverlay>

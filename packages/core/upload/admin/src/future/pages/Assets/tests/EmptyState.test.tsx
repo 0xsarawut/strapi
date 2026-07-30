@@ -22,6 +22,13 @@ describe('EmptyState', () => {
     expect(onAddAssets).toHaveBeenCalledTimes(1);
   });
 
+  it('hides the Add assets action when canAddAssets is false', () => {
+    render(<EmptyState onAddAssets={jest.fn()} canAddAssets={false} />);
+
+    expect(screen.getByText('No assets yet')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add assets' })).not.toBeInTheDocument();
+  });
+
   describe('when searching', () => {
     it('renders no-results copy including the query', () => {
       render(<EmptyState onAddAssets={jest.fn()} searchQuery="kitten" onClearSearch={jest.fn()} />);
