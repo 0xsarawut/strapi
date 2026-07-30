@@ -1271,7 +1271,11 @@ export const AssetDetailsDrawer = () => {
       <Drawer.Body
         animationDirection="left"
         width="41.6rem"
-        height="100vh"
+        // dvh, not vh: the drawer is anchored to the bottom, so with 100vh on
+        // mobile (where the URL bar shrinks the visual viewport below 100vh)
+        // the top of the drawer — header, title, close button — is pushed
+        // off-screen. dvh tracks the actual visible height.
+        height="100dvh"
         onAnimationEnd={onCloseAnimationEnd}
       >
         <DrawerContent assetId={assetId} closeDetails={closeDetails} />
