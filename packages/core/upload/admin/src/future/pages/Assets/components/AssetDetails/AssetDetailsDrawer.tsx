@@ -706,7 +706,7 @@ interface AssetFormState {
 
 export const AssetDetails = ({ asset, closeDetails }: AssetDetailsProps) => {
   const { formatMessage, formatDate } = useIntl();
-  const { canUpdate, canDownload, canCopyLink } = useMediaLibraryPermissions();
+  const { canCreate, canUpdate, canDownload, canCopyLink } = useMediaLibraryPermissions();
   const { data: folders = [] } = useGetAllFoldersQuery();
   const { toggleNotification } = useNotification();
   const [updateAsset] = useUpdateAssetMutation();
@@ -926,6 +926,7 @@ export const AssetDetails = ({ asset, closeDetails }: AssetDetailsProps) => {
                       onClose={() => setIsCropOpen(false)}
                       onApply={handleCropApply}
                       onSaveAsCopy={handleCropSaveAsCopy}
+                      canSaveAsCopy={canCreate}
                     />
                   ) : null}
                   {busyMessage ? (

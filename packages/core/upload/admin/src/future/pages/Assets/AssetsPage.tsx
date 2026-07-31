@@ -306,7 +306,7 @@ const HeaderWrapper = styled(Box)`
 export const AssetsPage = () => {
   const { formatMessage } = useIntl();
   const { openDetails } = useAssetDetailsParam();
-  const { canCreate } = useMediaLibraryPermissions();
+  const { canCreate, canUpdate } = useMediaLibraryPermissions();
 
   const { currentFolderId, navigateToFolderId, navigateToRoot } = useFolderNavigation();
   // Deleted or missing folders (404) need a fetch — handled here, not in
@@ -428,7 +428,8 @@ export const AssetsPage = () => {
   };
 
   const handleDrop = async (files: globalThis.File[]) => {
-    // The page-wide drop zone bypasses every button gate — enforce here too.
+    // Defence in depth: the provider is `disabled` without `assets.create`
+    // (so onDrop won't fire), but guard here too in case it's ever wired live.
     if (!canCreate) return;
     await uploadFilesToFolder(files, currentFolderId);
   };
@@ -453,8 +454,8 @@ export const AssetsPage = () => {
 
   return (
     <>
-      <UploadDropZoneProvider onDrop={handleDrop}>
-        <AssetSelectionProvider>
+      <UploadDropZoneProvider onDrop={handleDrop} disabled={!canCreate}>
+        <AssetSelectionProvider disabled={!canUpdate}>
           <AssetsDndProvider>
             <ClearSelectionOnChange listQueryKey={listQueryKey} />
             <Box ref={uploadDropZoneRef}>

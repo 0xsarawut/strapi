@@ -2,6 +2,11 @@ import { useRBAC } from '@strapi/admin/strapi-admin';
 
 import { PERMISSIONS } from '../../constants';
 
+// Hoisted to module scope (matching the legacy hook): a fresh object each render
+// would hand `useRBAC` a new identity every time, re-running its memos for no
+// gain (it guards refetch with a deep `isEqual`, so this is wasted work, not a loop).
+const { main: _main, ...RBAC_PERMISSIONS } = PERMISSIONS;
+
 /**
  * RBAC gate for the future Media Library UI. Mirrors the legacy hook of the
  * same name: the server already enforces every action route-side (assets and
@@ -17,8 +22,7 @@ import { PERMISSIONS } from '../../constants';
  * - `canDownload` / `canCopyLink` — the matching drawer actions
  */
 export const useMediaLibraryPermissions = () => {
-  const { main: _main, ...permissions } = PERMISSIONS;
-  const { allowedActions, isLoading } = useRBAC(permissions);
+  const { allowedActions, isLoading } = useRBAC(RBAC_PERMISSIONS);
 
   return {
     isLoading,

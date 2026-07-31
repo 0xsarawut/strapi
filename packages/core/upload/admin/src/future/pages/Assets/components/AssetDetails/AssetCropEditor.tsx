@@ -232,6 +232,12 @@ interface AssetCropEditorProps {
   onClose: () => void;
   onApply: (file: globalThis.File, focalPoint: FocalPoint) => void;
   onSaveAsCopy: (file: globalThis.File, focalPoint: FocalPoint) => void;
+  /**
+   * "Save as copy" creates a new asset (`assets.create`), a different permission
+   * from cropping in place (`assets.update`). Hidden when the user lacks it, so
+   * an update-only role can't trigger a 403.
+   */
+  canSaveAsCopy: boolean;
 }
 
 type Corner = 'tl' | 'tr' | 'bl' | 'br';
@@ -242,6 +248,7 @@ export const AssetCropEditor = ({
   onClose,
   onApply,
   onSaveAsCopy,
+  canSaveAsCopy,
 }: AssetCropEditorProps) => {
   const { formatMessage } = useIntl();
   const { toggleNotification } = useNotification();
@@ -309,6 +316,19 @@ export const AssetCropEditor = ({
     };
   };
 
+  // Teardown for the drag currently in flight, so it can be run both on pointer
+  // release AND on unmount. Without the unmount path, closing the editor mid-drag
+  // (Escape, drawer close, a re-render dropping the overlay) would never fire a
+  // pointer event, leaking the window listeners and letting a stale `onMove`
+  // call `setCropPosition` on an unmounted component.
+  const activeDragCleanupRef = React.useRef<(() => void) | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      activeDragCleanupRef.current?.();
+    };
+  }, []);
+
   // Track a pointer drag until the pointer is released or the browser cancels
   // it. The pointer is captured so the drag follows the finger even once it
   // leaves the (12px) handle it started on, and pointercancel is treated as
@@ -326,12 +346,19 @@ export const AssetCropEditor = ({
       if (e.pointerId !== pointerId) return;
       onMove(e);
     };
-    const end = (e: PointerEvent) => {
-      if (e.pointerId !== pointerId) return;
+    const cleanup = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', end);
       window.removeEventListener('pointercancel', end);
+      activeDragCleanupRef.current = null;
     };
+    const end = (e: PointerEvent) => {
+      if (e.pointerId !== pointerId) return;
+      cleanup();
+    };
+    // Only one drag is ever live at a time; tear down any previous one first.
+    activeDragCleanupRef.current?.();
+    activeDragCleanupRef.current = cleanup;
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', end);
     window.addEventListener('pointercancel', end);
@@ -664,17 +691,19 @@ export const AssetCropEditor = ({
               {formatMessage({ id: 'app.components.Button.cancel', defaultMessage: 'Cancel' })}
             </Button>
             <Flex gap={2}>
-              <Button
-                variant="secondary"
-                onClick={() => handleAction('copy')}
-                loading={isBusy}
-                disabled={!isReady}
-              >
-                {formatMessage({
-                  id: getTranslationKey('asset-details.crop.save-as-copy'),
-                  defaultMessage: 'Save as copy',
-                })}
-              </Button>
+              {canSaveAsCopy && (
+                <Button
+                  variant="secondary"
+                  onClick={() => handleAction('copy')}
+                  loading={isBusy}
+                  disabled={!isReady}
+                >
+                  {formatMessage({
+                    id: getTranslationKey('asset-details.crop.save-as-copy'),
+                    defaultMessage: 'Save as copy',
+                  })}
+                </Button>
+              )}
               <Button
                 variant="default"
                 onClick={() => handleAction('apply')}

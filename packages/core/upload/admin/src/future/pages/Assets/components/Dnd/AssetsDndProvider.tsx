@@ -101,6 +101,11 @@ const resolveDestination = (
   return null;
 };
 
+// Activation distance no real pointer gesture will ever reach — used to keep a
+// constant-length sensor array while disabling drag for users without the move
+// permission (see the note in the provider).
+const DRAG_DISABLED_DISTANCE = Number.MAX_SAFE_INTEGER;
+
 export const AssetsDndProvider = ({ children }: AssetsDndProviderProps) => {
   const { formatMessage } = useIntl();
   const { toggleNotification } = useNotification();
@@ -122,13 +127,21 @@ export const AssetsDndProvider = ({ children }: AssetsDndProviderProps) => {
     requestAnimationFrame(() => setLiveAnnouncement(message));
   }, []);
 
-  // Moving is a mutation (bulk-move → `assets.update`): without the
-  // permission the drag never activates — an unreachable activation distance
-  // keeps the sensor hook unconditional (hooks rules) while disabling it.
+  // Moving is a mutation (bulk-move → `assets.update`); without the permission
+  // pointer drag must never activate. Keyboard moves go through BulkMoveDialog,
+  // which is itself gated.
+  //
+  // The gate has to keep BOTH the `useSensor`/`useSensors` calls AND the sensor
+  // array's length constant across renders: `canUpdate` starts false and flips
+  // true once the RBAC check resolves, and dnd-kit keys internal memos/effects
+  // on the sensor list, erroring if its size changes ("argument changed size
+  // between renders"). So adding/removing a sensor is out — instead keep one
+  // PointerSensor always and push its activation distance out of reach when the
+  // user can't move, which no real drag gesture will ever satisfy.
   const { canUpdate } = useMediaLibraryPermissions();
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: canUpdate ? 8 : Number.MAX_SAFE_INTEGER },
+      activationConstraint: { distance: canUpdate ? 8 : DRAG_DISABLED_DISTANCE },
     })
   );
 

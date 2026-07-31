@@ -88,13 +88,14 @@ afterAll(() => {
   restoreNatural();
 });
 
-const renderEditor = async () => {
+const renderEditor = async ({ canSaveAsCopy = true }: { canSaveAsCopy?: boolean } = {}) => {
   const utils = render(
     <AssetCropEditor
       asset={asset}
       onClose={jest.fn()}
       onApply={jest.fn()}
       onSaveAsCopy={jest.fn()}
+      canSaveAsCopy={canSaveAsCopy}
     />
   );
 
@@ -166,5 +167,45 @@ describe('AssetCropEditor pointer drags', () => {
     expect(focalHandle).toHaveStyle({ left: '50%', top: '50%' });
 
     fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 400, clientY: 300 }));
+  });
+});
+
+describe('AssetCropEditor save-as-copy gating', () => {
+  it('shows "Save as copy" when the user can create assets', async () => {
+    await renderEditor({ canSaveAsCopy: true });
+
+    expect(screen.getByRole('button', { name: 'Save as copy' })).toBeInTheDocument();
+    // Apply (crop in place = assets.update) is always present.
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument();
+  });
+
+  it('hides "Save as copy" without create permission, keeping Apply', async () => {
+    await renderEditor({ canSaveAsCopy: false });
+
+    expect(screen.queryByRole('button', { name: 'Save as copy' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument();
+  });
+});
+
+describe('AssetCropEditor drag cleanup on unmount', () => {
+  it('removes window drag listeners when unmounted mid-drag', async () => {
+    const removeSpy = jest.spyOn(window, 'removeEventListener');
+    const { focalHandle, unmount } = await renderEditor();
+
+    // Start a drag but never release it.
+    fireEvent(
+      focalHandle,
+      pointerEvent('pointerdown', { pointerId: 1, clientX: 400, clientY: 300 })
+    );
+
+    unmount();
+
+    // The unmount cleanup must tear down all three window listeners so a stale
+    // onMove can't fire on the unmounted component.
+    for (const type of ['pointermove', 'pointerup', 'pointercancel']) {
+      expect(removeSpy).toHaveBeenCalledWith(type, expect.any(Function));
+    }
+
+    removeSpy.mockRestore();
   });
 });

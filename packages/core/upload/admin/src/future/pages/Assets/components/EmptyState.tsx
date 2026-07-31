@@ -6,8 +6,12 @@ import { getTranslationKey } from '../../../utils/translations';
 
 interface EmptyStateProps {
   onAddAssets: () => void;
-  /** RBAC gate — without `assets.create` the "Add assets" CTA is hidden. */
-  canAddAssets?: boolean;
+  /**
+   * RBAC gate — without `assets.create` the "Add assets" CTA is hidden.
+   * Required (not defaulted) so a permission gate can't silently regress to
+   * permissive when a future call site forgets to pass it.
+   */
+  canAddAssets: boolean;
   searchQuery?: string;
   onClearSearch?: () => void;
 }
@@ -20,7 +24,7 @@ interface EmptyStateProps {
  */
 export const EmptyState = ({
   onAddAssets,
-  canAddAssets = true,
+  canAddAssets,
   searchQuery,
   onClearSearch,
 }: EmptyStateProps) => {
