@@ -8,6 +8,7 @@ import type {
   Pagination,
   UploadFileInfo,
   AssetWithPopulatedCreatedBy,
+  UnstableGenerateAIMetadata,
 } from '../../../../shared/contracts/files';
 
 interface GetAssetsParams {
@@ -16,6 +17,8 @@ interface GetAssetsParams {
   folder?: number | null;
   sort?: string;
   search?: string;
+  /** Extra `filters[$and]` entries (list filters), AND-ed with the folder/search scope. */
+  filters?: Record<string, unknown>[];
 }
 
 interface GetAssetsResponse {
@@ -42,20 +45,25 @@ const assetsApi = uploadApi.injectEndpoints({
       query: (params = {}) => {
         // `search` is destructured out so it never reaches the server as-is —
         // it is re-added below as the `_q` the API actually understands.
-        const { folder, search, ...rest } = params as GetAssetsParams;
+        const { folder, search, filters = [], ...rest } = params as GetAssetsParams;
 
         const queryParams: Record<string, unknown> = { ...rest };
 
+        // List filters apply in BOTH modes: search composes with them (a
+        // filtered search), only the folder scope is dropped while searching.
         if (search) {
           // Search is global: folder scoping is intentionally dropped so results span the whole library.
           queryParams['_q'] = encodeSearchQuery(search);
-        } else if (folder != null) {
-          queryParams['filters'] = {
-            $and: [{ folder: { id: folder } }],
-          };
+
+          if (filters.length > 0) {
+            queryParams['filters'] = { $and: [...filters] };
+          }
         } else {
+          const folderScope =
+            folder != null ? { folder: { id: folder } } : { folder: { id: { $null: true } } };
+
           queryParams['filters'] = {
-            $and: [{ folder: { id: { $null: true } } }],
+            $and: [folderScope, ...filters],
           };
         }
 
@@ -163,6 +171,28 @@ const assetsApi = uploadApi.injectEndpoints({
         { type: 'Folder' as const, id: 'STRUCTURE' },
       ],
     }),
+    /**
+     * Generate AI metadata (alt text + caption) for the selected assets.
+     * Synchronous: resolves once every file has been processed and reports the
+     * outcome per file, so non-images and individual failures don't fail the
+     * whole batch. Existing alt text and captions are never overwritten.
+     */
+    generateAiMetadata: builder.mutation<
+      UnstableGenerateAIMetadata.Response['data'],
+      { fileIds: number[] }
+    >({
+      query: ({ fileIds }) => ({
+        url: '/upload/unstable/generate-ai-metadata',
+        method: 'POST',
+        data: { fileIds },
+      }),
+      transformResponse: (response: { data: UnstableGenerateAIMetadata.Response['data'] }) =>
+        response.data,
+      invalidatesTags: (_result, _error, { fileIds }) => [
+        ...fileIds.map((id) => ({ type: 'Asset' as const, id })),
+        { type: 'Asset' as const, id: 'LIST' },
+      ],
+    }),
   }),
 });
 
@@ -173,4 +203,5 @@ export const {
   useReplaceAssetMutation,
   useDeleteAssetMutation,
   useBulkDeleteItemsMutation,
+  useGenerateAiMetadataMutation,
 } = assetsApi;
